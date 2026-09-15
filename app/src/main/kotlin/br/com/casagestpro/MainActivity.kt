@@ -9,6 +9,7 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
 import android.view.View
 import android.webkit.ValueCallback
 import android.webkit.PermissionRequest
@@ -17,6 +18,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.JavascriptInterface
 import android.widget.ProgressBar
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.ComponentActivity
@@ -25,10 +27,12 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import com.google.firebase.messaging.FirebaseMessaging
 
 class MainActivity : ComponentActivity() {
     companion object {
         private const val ALL_FILE_TYPES = "*/*"
+        const val NOTIFICATION_URL_EXTRA = "notification_url"
     }
 
     private lateinit var webView: WebView
@@ -55,6 +59,10 @@ class MainActivity : ComponentActivity() {
         filePathCallback = null
     }
 
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureSystemBars()
@@ -64,8 +72,11 @@ class MainActivity : ComponentActivity() {
         progressBar = findViewById(R.id.progress_bar)
         configureInsets(findViewById(R.id.content))
         configureWebView()
+        webView.addJavascriptInterface(PushBridge(), "CasaGestNative")
         configureBackNavigation()
-        restoreOrLoadPage(savedInstanceState)
+        requestNotificationPermission()
+        refreshPushToken()
+        restoreOrLoadPage(savedInstanceState, intent.getStringExtra(NOTIFICATION_URL_EXTRA))
     }
 
     private fun configureInsets(content: View) {
@@ -140,12 +151,43 @@ class MainActivity : ComponentActivity() {
         })
     }
 
-    private fun restoreOrLoadPage(savedInstanceState: Bundle?) {
+    private fun restoreOrLoadPage(savedInstanceState: Bundle?, notificationUrl: String?) {
         if (savedInstanceState == null) {
-            webView.loadUrl(BuildConfig.CASA_GEST_URL)
+            webView.loadUrl(notificationUrl?.takeIf(::isCasaGestUrl) ?: BuildConfig.CASA_GEST_URL)
         } else {
             webView.restoreState(savedInstanceState)
         }
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    private fun refreshPushToken() {
+        try {
+            FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+                getSharedPreferences(
+                    CasaGestFirebaseMessagingService.PREFERENCES_NAME,
+                    MODE_PRIVATE
+                ).edit()
+                    .putString(CasaGestFirebaseMessagingService.PUSH_TOKEN_KEY, token)
+                    .apply()
+            }
+        } catch (_: IllegalStateException) {
+            // Firebase becomes available after google-services.json is configured.
+        }
+    }
+
+    inner class PushBridge {
+        @JavascriptInterface
+        fun getPushToken(): String = getSharedPreferences(
+            CasaGestFirebaseMessagingService.PREFERENCES_NAME,
+            MODE_PRIVATE
+        ).getString(CasaGestFirebaseMessagingService.PUSH_TOKEN_KEY, "") ?: ""
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

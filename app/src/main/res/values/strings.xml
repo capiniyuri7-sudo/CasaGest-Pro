@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">CasaGest Pro</string>
+    <string name="notification_channel_name">Notificacoes do CasaGest Pro</string>
+</resources>

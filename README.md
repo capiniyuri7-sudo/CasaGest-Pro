@@ -23,3 +23,13 @@ O conteudo respeita as barras do sistema e recortes de tela por meio de `WindowI
 Quando a aplicacao web solicitar camera ou microfone, o Android exibe a permissao correspondente. O acesso so e concedido depois da aprovacao do usuario e apenas para a origem publica configurada do CasaGest Pro.
 
 O tema visual acompanha automaticamente o tema do dispositivo. O shell Android, as barras do sistema, a barra de progresso e o WebView usam variantes claras e escuras; a alternancia ocorre quando o sistema recria a atividade.
+
+## Notificacoes push
+
+O cliente FCM esta integrado, mas o Firebase precisa ser configurado antes do envio real:
+
+1. Crie ou selecione um projeto no Firebase Console e registre o app Android com o id `br.com.casagestpro`.
+2. Baixe `google-services.json` e coloque-o em `app/google-services.json`.
+3. Gere o APK novamente; o plugin Google Services sera habilitado automaticamente quando o arquivo estiver presente.
+
+O site pode obter o token do dispositivo com `window.CasaGestNative.getPushToken()` e envia-lo ao backend. Mensagens FCM devem usar os campos `title`, `body` e, opcionalmente, `url` no payload `data`; a URL sera aberta no WebView somente se pertencer ao CasaGest Pro.
